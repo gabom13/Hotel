@@ -1,0 +1,119 @@
+﻿@page "/boletasservicio"
+
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+
+@rendermode InteractiveServer
+
+@inject IDialogService DialogService
+@inject IServiciosService servicioService
+@inject IClientesService clientesService
+@inject IUsuariosService usuariosService
+@inject IReservasService reservasService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@if (boletasServicio == null)
+{
+    <MudPaper Height="400px" Class="justify-center d-flex">
+        <MudProgressCircular Color="Color.Dark" Indeterminate="true" Size="Size.Large" Class="align-self-center" />
+    </MudPaper>
+}
+else
+{
+    @if (!login.isLoggedIn)
+    {
+        <MudText Typo="Typo.h6">Inicia sesion para continuar</MudText>
+    }
+    else
+    {
+        <MudDataGrid Items="@boletasServicio" QuickFilter="@_quickFilter" Elevation="5">
+            <ToolBarContent>
+            <MudText Typo="Typo.h6">Boletas de Servicio</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString" Placeholder="Busqueda (titular, servicio, usuario)" Variant="Variant.Outlined" Adornment="Adornment.Start" Immediate="true"
+                          AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"></MudTextField>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="b => b.NombreTitular" Title="Titular" />
+            <PropertyColumn Property="b => b.NombreServicio" Title="Servicio" />
+                <PropertyColumn Property="b => b.Precio" Title="Precio" Format="'Bs '0,0.00" />
+            <PropertyColumn Property="b => b.NombreUsuario" Title="Usuario" />
+            <PropertyColumn Property="b => b.Nota" Title="Nota" />
+            <TemplateColumn Title="Opciones" CellClass="d-flex">
+                <CellTemplate>
+                    <MudStack Row>
+                        <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Info" OnClick="@(() => EditBoletaServicio(context.Item.Id))" />
+                        <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => ShowDeleteDialog(context.Item.Id))" />
+                    </MudStack>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+    }
+}
+
+@code {
+    IEnumerable<BoletasServicioModel> boletasServicio;
+    IEnumerable<ServiciosModel> servicios;
+    IEnumerable<ClientesModel> clientes;
+    IEnumerable<UsuariosModel> usuarios;
+    IEnumerable<ReservasModel> reservas;
+    LoginSingleton login;
+
+    string _searchString;
+
+    private Func<BoletasServicioModel, bool> _quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+        if (x.NombreTitular.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (x.NombreUsuario.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (x.NombreServicio.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        login = await LoginSingleton.GetInstance();
+        boletasServicio = await servicioService.GetBoletasServicio();
+        servicios = await servicioService.GetServicios();
+        clientes = await clientesService.GetClientes();
+        usuarios = await usuariosService.GetUsuarios();
+        reservas = await reservasService.GetReservas();      
+        await SetCustomColums();
+    }
+
+    private async Task ShowDeleteDialog(int id)
+    {
+        DialogOptions closeOnEscapeKey = new DialogOptions() { CloseOnEscapeKey = true, Position = DialogPosition.Center };
+        var dialog = await DialogService.ShowAsync<DialogDelete>("Eliminar", closeOnEscapeKey);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await servicioService.DeleteBoletaServicio(id);
+            boletasServicio = await servicioService.GetBoletasServicio();
+            await SetCustomColums();
+            Snackbar.Add("Eliminado", Severity.Success);
+        }
+    }
+
+    private void EditBoletaServicio(int id)
+    {
+        Navigation.NavigateTo($"/boletasservicioedit/{id}");
+    }
+
+    private async Task SetCustomColums()
+    {
+        foreach (var b in boletasServicio)
+        {
+            b.NombreTitular = reservas.Where(r => r.Id == b.Id_Reserva).Join(clientes, r => r.Id_Titular, c => c.Cid, (r, c) => new { r, c }).FirstOrDefault().c.Nombre_Completo;
+            b.NombreServicio = servicios.FirstOrDefault(s => s.Id == b.Servicio).Nombre;
+            b.NombreUsuario = usuarios.FirstOrDefault(u => u.Cid == b.Usuario).Nombre_Completo;
+        }
+    }
+}

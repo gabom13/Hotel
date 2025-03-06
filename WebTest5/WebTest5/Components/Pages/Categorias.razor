@@ -1,0 +1,208 @@
+﻿@page "/categorias"
+
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+
+@rendermode InteractiveServer
+
+@inject IDialogService DialogService
+@inject IClientesService clientesService
+@inject ICategoriasService categoriasService
+@inject IServiciosService serviciosService;
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@if (motivosReserva == null && paises == null && ciudades == null && profesiones == null && empresas == null )
+{
+    <MudPaper Height="400px" Class="justify-center d-flex">
+        <MudProgressCircular Color="Color.Dark" Indeterminate="true" Size="Size.Large" Class="align-self-center" />
+    </MudPaper>
+}
+else
+{
+    @if (!login.isLoggedIn)
+    {
+        <MudText Typo="Typo.h6">Inicia sesion para continuar</MudText>
+
+    }
+    else
+    {
+        @if (login.isRecepcionist || login.isManager)
+        {       
+            <MudContainer Class="justify-center d-flex">
+                <MudText Typo="Typo.h5" Class="align-self-center">CATEGORIAS</MudText>
+            </MudContainer>
+            <MudPaper Elevation="2" Class="d-flex my-4">
+            <MudGrid>
+                <MudItem xs="12" sm="4" Class="mx-4">
+                    <MudSelect T="string" Label="Seleccione una categoria para Añadir" Placeholder="Opciones" @bind-Value="opcion" Required="true" AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" Class="my-8 d-flex">
+                        <MudSelectItem Value="@("Empresas")">@{formBool = false;} Empresa</MudSelectItem>
+                        <MudSelectItem Value="@("Ciudades")">@{formBool = false;} Ciudad</MudSelectItem>
+                        <MudSelectItem Value="@("Paises")">@{formBool = false;} Pais</MudSelectItem>
+                        <MudSelectItem Value="@("Servicios")">@{formBool = false;}Servicio</MudSelectItem>
+                        <MudSelectItem Value="@("Profesiones")">@{formBool = false;}Profesion</MudSelectItem>
+                        <MudSelectItem Value="@("Motivos_Reserva")">@{formBool = false;}Motivo de Reserva</MudSelectItem>
+                        <MudSelectItem Value="@("Servicios")">@{formBool = false;}Servicios</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">           
+                        <MudForm @ref="@form" Model="@categoria" Class="mt-7 mx-2 pb-2">
+                            <MudStack Row Class="d-flex justify-end align-center justify-space-between">
+                                <MudTextField T="string" Label="Nombre" @bind-Value="categoria.Nombre" Variant="Variant.Outlined" Required="true" RequiredError="¡Debe ingresar un nombre!" />
+                                <MudButton Disabled="@formBool" Variant="Variant.Filled" Color="Color.Primary" Class="ml-auto mt-3 " OnClick="@(async () => await Submit(opcion))">Guardar</MudButton>
+                                <MudButton Variant="Variant.Outlined" Color="Color.Error" DisableElevation="true" OnClick="Cancel" Class="ml-auto mt-3">Cancelar</MudButton>
+                            </MudStack>
+                        </MudForm>
+            
+                </MudItem>
+            </MudGrid>
+            </MudPaper>
+            <MudGrid>
+                @foreach (var lista in listasCategorias)
+                {
+                    <MudItem xs="12" sm="3">
+                        <MudTable Items="@lista.Value" FixedHeader="true" RowsPerPage="5" Hover="true" Breakpoint="Breakpoint.Sm" LoadingProgressColor="Color.Info" Elevation="3" >
+                            <ToolBarContent>
+                                <MudText Typo="Typo.h6">@{@lista.Key.Replace("_"," ")}</MudText>
+                            </ToolBarContent>
+                            <HeaderContent>
+                                <MudTh>Nombre</MudTh>
+                                <MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+                                <MudTd>
+                                    <MudStack Row Class="d-flex justify-end">
+                                        <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" Color="Color.Info" OnClick="@(() => Edit(lista.Key,context))" />
+                                    <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => Remove(context.Id, lista.Key))" />
+                                </MudStack>
+                                </MudTd>
+                            </RowTemplate>
+                            <PagerContent>
+                                <MudTablePager RowsPerPageString="" HorizontalAlignment="HorizontalAlignment.Center" HideRowsPerPage="true"
+                                               FirstIcon="" LastIcon=""/>
+                            </PagerContent>
+                        </MudTable>
+                    </MudItem>
+
+                }           
+            </MudGrid>
+        }
+        else
+        {
+            <MudText Typo="Typo.h6">No tienes permiso para acceder</MudText>
+        }
+    }
+}
+
+
+@code {
+    MudForm form;
+    EmpresasModel empresa;
+    CiudadesModel ciudad;
+    PaisesModel pais;
+    ServiciosModel servicio;
+    ProfesionesModel profesion;
+    MotivosReservaModel motivoReserva;
+    CategoriasModel categoria;
+
+    IEnumerable<CategoriasModel> motivosReserva;
+    IEnumerable<CategoriasModel> paises;
+    IEnumerable<CategoriasModel> ciudades;
+    IEnumerable<CategoriasModel> servicios;
+    IEnumerable<CategoriasModel> profesiones;
+    IEnumerable<CategoriasModel> empresas;
+    List<MudTable<CategoriasModel>> tablasCategorias;
+    Dictionary<string, List<CategoriasModel>> listasCategorias;
+    bool editing,formBool;
+    private string opcion = "Opciones";
+    LoginSingleton login;
+
+    protected override async Task OnInitializedAsync()
+    {
+        login = await LoginSingleton.GetInstance();
+        editing = false;
+        formBool = true;
+        categoria = new CategoriasModel();
+        empresa = new EmpresasModel();
+        ciudad = new CiudadesModel();
+        pais = new PaisesModel();
+        servicio = new ServiciosModel();
+        profesion = new ProfesionesModel();
+        motivoReserva = new MotivosReservaModel();
+        motivosReserva = await categoriasService.GetMotivosReserva();
+        paises = await categoriasService.GetPaises();
+        ciudades = await categoriasService.GetCiudades();
+        servicios = await serviciosService.GetServicios();
+        profesiones = await categoriasService.GetProfesiones();
+        empresas = await categoriasService.GetEmpresas();
+        listasCategorias = new Dictionary<string, List<CategoriasModel>> {
+            { "Empresas", empresas.ToList() }, { "Ciudades", ciudades.ToList() }, { "Paises", paises.ToList() },
+            { "Profesiones", profesiones.ToList() }, { "Motivos_Reserva", motivosReserva.ToList() },{"Servicios",servicios.ToList()}
+        };       
+    }
+
+    private void PageChanged(int i,MudTable<CategoriasModel> t)
+    {
+        t.NavigateTo(i - 1);
+    }
+
+    private async Task Submit(string opcion)
+    {
+        await form.Validate();
+
+        if (form.IsValid && opcion != "Opciones")
+        {
+            if (editing)
+            {
+                await categoriasService.UpdateCategoria(categoria, opcion.ToLower());
+            }
+            else
+                await categoriasService.AddCategoria(categoria, opcion.ToLower());
+            await RefreshList(opcion);
+            StateHasChanged();
+        }
+        else
+        {
+            Snackbar.Add("Selecciones una categoria", Severity.Error);
+        }
+    }
+
+    private async Task Remove(int id, string op)
+    {
+        DialogOptions closeOnEscapeKey = new DialogOptions() { CloseOnEscapeKey = true, Position = DialogPosition.Center };
+        var dialog = await DialogService.ShowAsync<DialogDelete>("Eliminar", closeOnEscapeKey);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await categoriasService.DeleteCategoria(id, op);
+            await RefreshList(opcion);
+            Snackbar.Add("Eliminado", Severity.Success);
+        }
+    }
+
+    private async Task Edit(string op,CategoriasModel c)
+    {
+        categoria = c;
+        opcion = op;
+        editing = true;
+    }
+
+    private void Cancel()
+    {
+        form.ResetAsync();
+        opcion = "Opciones";
+        formBool = true;
+    }
+
+    private async Task RefreshList(string op)
+    {
+        listasCategorias[op] = (await categoriasService.GetCategorias(op.ToLower())).ToList();
+        categoria = new CategoriasModel();
+        editing = false;
+        formBool = true;
+        opcion = "Opciones";
+        StateHasChanged();
+    }
+}

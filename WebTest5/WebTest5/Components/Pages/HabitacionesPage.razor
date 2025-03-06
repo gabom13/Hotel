@@ -1,0 +1,124 @@
+@page "/habitaciones"
+
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+
+@rendermode InteractiveServer
+
+@inject IHabitacionesService habitacionesService
+@inject ICategoriasService categoriasService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@if (habitaciones == null && tipoHabitaciones == null && estadosHabitacion == null)
+{
+    <MudPaper Height="400px" Class="justify-center d-flex">
+        <MudProgressCircular Color="Color.Dark" Indeterminate="true" Size="Size.Large" Class="align-self-center" />
+    </MudPaper>
+}
+else
+{
+    @if (!login.isLoggedIn)
+    {
+        <MudText Typo="Typo.h6">Inicia sesion para continuar</MudText>
+
+    }
+    else
+    {
+        @if (login.isRecepcionist || login.isManager)
+        {
+            <MudDataGrid Items="@habitaciones" QuickFilter="@quickFilter" Elevation="5" Dense="true">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">HABITACIONES</MudText>
+                    <MudSpacer />
+                    <MudButton OnClick="@AddHabitacion" Color="@Color.Success" Variant="Variant.Filled" Class="add-item-btn mr-8">Añadir Habitacion</MudButton>
+                    <MudTextField @bind-Value="searchString" Placeholder="Busqueda (nombre, tipo, estado)" Variant="Variant.Outlined" Adornment="Adornment.Start" Immediate="true"
+                                  AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"></MudTextField>
+                </ToolBarContent>
+                <Columns>
+                    <PropertyColumn Property="h => h.Nombre" Title="Nombre" />
+                    <PropertyColumn Property="h => h.NombreTipo" Title="Tipo de Habitacion" />
+                    <PropertyColumn Property="h => h.NombreEstado" Title="Estado" />
+                    <TemplateColumn Title="Opciones" CellClass="d-flex">
+                        <CellTemplate>
+                            <MudStack Row>
+                                <MudIconButton Size="Size.Small" Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" Color="Color.Info" OnClick="@(() => EditHabitacion(context.Item.Id))" />
+                                    <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => ShowDeleteDialog(context.Item.Id))" />
+                            </MudStack>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        }
+        else
+        {
+            <MudText Typo="Typo.h6">No tienes permiso para acceder</MudText>
+        }
+    }
+}
+
+@code {
+    private IEnumerable<HabitacionesModel> habitaciones;
+    private IEnumerable<TipoHabitacionesModel> tipoHabitaciones;
+    private IEnumerable<EstadosHabitacionModel> estadosHabitacion;
+    private string searchString;
+    LoginSingleton login;
+
+    private Func<HabitacionesModel, bool> quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (x.NombreEstado.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (x.NombreTipo.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (x.Nombre.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        login = await LoginSingleton.GetInstance();
+        habitaciones = await habitacionesService.GetHabitaciones();
+        tipoHabitaciones = await habitacionesService.GetTipoHabitaciones();
+        estadosHabitacion = await categoriasService.GetEstadosHabitacion();
+        await SetCustomColums();        
+    }
+
+    void AddHabitacion()
+    {
+        Navigation.NavigateTo($"/habitacionesform/{null}");
+    }
+
+    private async Task ShowDeleteDialog(int id)
+    {
+        DialogOptions closeOnEscapeKey = new DialogOptions() { CloseOnEscapeKey = true };
+        var dialog = DialogService.Show<DialogDelete>("Eliminar", closeOnEscapeKey);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await habitacionesService.DeleteHabitacion(id);
+            habitaciones = await habitacionesService.GetHabitaciones();
+            await SetCustomColums();
+            Snackbar.Add("Eliminado", Severity.Success);
+        }
+    }
+
+    private void EditHabitacion(int id)
+    {
+        Navigation.NavigateTo($"/habitacionesform/{id}");
+    }
+
+    private Task SetCustomColums()
+    {
+        foreach (var h in habitaciones)
+        {
+            h.NombreTipo = tipoHabitaciones.FirstOrDefault(t => t.Id == h.Tipo).Nombre;
+            h.NombreEstado = estadosHabitacion.FirstOrDefault(e => e.Id == h.Id_Estado).Nombre;
+        }
+        return Task.CompletedTask;
+    }
+}

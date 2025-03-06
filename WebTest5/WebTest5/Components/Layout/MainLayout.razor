@@ -1,0 +1,118 @@
+﻿@using WebTest5.Components.Model
+@using WebTest5.Components.Service
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+
+<MudThemeProvider @rendermode="InteractiveServer" @bind-IsDarkMode="@_isDarkMode" Theme="_theme" />
+<MudDialogProvider @rendermode="InteractiveServer" />
+<MudSnackbarProvider @rendermode="InteractiveServer" />
+
+<PageTitle>Hotel Angostura</PageTitle>
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        <MudStack Row Class="ml-auto">
+            @if(login.isLoggedIn)
+            {
+                <MudButton OnClick="@Logout" Color="Color.Inherit" Variant="Variant.Text" Class="add-item-btn pa-n2">Cerrar Sesion</MudButton>
+            }
+            else
+            {
+                <MudButton OnClick="@Login" Color="@Color.Success" Variant="Variant.Filled" Class="add-item-btn">Iniciar Sesion</MudButton>
+            }
+            <MudToggleIconButton Size="Size.Large" ToggledSize="Size.Large" Variant="Variant.Text" ToggledChanged="@DarkThemeToggle" 
+                             Icon="@Icons.Material.Filled.Brightness2" Color="@Color.Inherit" ToggledIcon="@Icons.Material.Filled.Brightness7" ToggledColor="@Color.Inherit" />
+        </MudStack>
+    </MudAppBar>
+    <MudDrawer Elevation="2" @bind-Open="@_drawerOpen" ClipMode="DrawerClipMode.Always">
+        <MudDrawerHeader>
+            <MudImage onclick="@Home" Src="/logo.png" Fluid="true" Alt="Hotel Angostura" Class="rounded-lg"></MudImage>                 
+        </MudDrawerHeader>
+         <MudNavMenu Color="Color.Primary" Margin="Margin.Dense" Rounded="true">
+            <MudDivider Class="my-2" />
+            @if (login.isManager || login.isRecepcionist || login.isEmployee)
+            {
+                <MudNavLink Href="/panel" Icon="@Icons.Material.Rounded.Dashboard" Class="">Panel</MudNavLink>
+            }
+            @if (login.isManager || login.isRecepcionist)
+            {
+                <MudNavLink Href="/clientes" Icon="@Icons.Material.Rounded.Group">Clientes</MudNavLink>
+                <MudNavLink Href="/reservas" Icon="@Icons.Material.Filled.CalendarMonth">Reservas</MudNavLink>
+                <MudNavLink Href="/habitaciones" Icon="@Icons.Material.Filled.Hotel">Habitaciones</MudNavLink>
+                <MudNavLink Href="/categorias" Icon="@Icons.Material.Filled.StickyNote2">Lista Categorias</MudNavLink>
+            }
+            @if (login.isManager || login.isRecepcionist || login.isEmployee)
+            {
+                <MudNavLink Href="/boletasservicio" Icon="@Icons.Material.Filled.RoomService">Boletas de Servicios</MudNavLink>
+            }
+            @if (login.isManager)
+            {
+                <MudNavLink Href="/usuarios" Icon="@Icons.Material.Filled.AssignmentInd">Usuarios</MudNavLink>                
+                <MudNavLink Href="/bi" Icon="@Icons.Material.Filled.Computer">BI</MudNavLink>
+            }          
+            <MudDivider Class="my-2" />
+        </MudNavMenu>
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer Class="mt-16 px-8" MaxWidth="MaxWidth.False">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+   
+</MudLayout>
+
+@code {
+    bool _drawerOpen = true;
+    bool _isDarkMode;
+    LoginSingleton login;
+
+    private MudTheme _theme = new MudTheme()
+        {
+            Palette = new PaletteLight()
+            {
+                Primary = Colors.Green.Darken3,
+                AppbarBackground = Colors.Green.Darken3
+            },
+            PaletteDark = new PaletteDark()
+            {
+                Primary = Colors.Green.Darken3
+            }
+        };
+
+    protected override async void OnInitialized()
+    {
+        login = await LoginSingleton.GetInstance();
+    }
+
+    void DarkThemeToggle()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    void Home()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+        StateHasChanged();
+    }
+
+    void Login()
+    {
+        Navigation.NavigateTo("/login");
+    }
+
+    void Logout()
+    {
+        login.isLoggedIn = false;
+        login.isManager = false;
+        login.isRecepcionist = false;
+        login.isEmployee = false;
+        StateHasChanged();
+        Navigation.NavigateTo("/login");
+    }
+}

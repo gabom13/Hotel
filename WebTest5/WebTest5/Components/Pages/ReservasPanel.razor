@@ -1,0 +1,367 @@
+﻿@page "/panel"
+
+@using System.Collections.ObjectModel
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+@using WebTest5.Components.Enum
+
+@rendermode InteractiveServer
+
+@inject IDialogService DialogService
+@inject IReservasService reservasService
+@inject IClientesService clientesService
+@inject IHabitacionesService habitacionesService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@if (reservas == null && clientes == null && habitaciones == null)
+{
+    <MudPaper Height="400px" Class="justify-center d-flex">
+            <MudProgressCircular Color="Color.Dark" Indeterminate="true" Size="Size.Large" Class="align-self-center" />
+    </MudPaper>
+}
+else
+{
+    @if (!login.isLoggedIn)
+    {
+        <MudText Typo="Typo.h6">Inicia sesion para continuar</MudText>
+    }
+    else
+    {
+    <MudGrid>
+        <MudItem xs="11" sm="11">
+            <MudDataGrid Items="@reservasCheckIn" QuickFilter="@quickFilter" Hover="true" Elevation="5" Dense="true" Style="@($"border: 2px solid{Colors.Orange.Darken2};")">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">RESERVAS ACTIVAS</MudText>
+                    <MudSpacer />
+                    <MudTextField @bind-Value="searchString" Placeholder="Busqueda (titular, estado, motivo de reserva, empresa, fecha reserva)" Variant="Variant.Outlined" Adornment="Adornment.Start" Immediate="true"
+                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"></MudTextField>
+                </ToolBarContent>
+                <Columns>
+                    <PropertyColumn Property="r => r.NombreTitular" Title="Titular" />
+                    <PropertyColumn Property="r => r.Fecha_Llegada.ToString(dateFormat)" Title="Fecha de llegada" />
+                    <PropertyColumn Property="r => r.Fecha_Salida.ToString(dateFormat)" Title="Fecha de salida" />
+                    <PropertyColumn Property="r => r.Nota" Title="Nota" />
+                    <TemplateColumn Title="Opciones" CellClass="d-flex">
+                        <CellTemplate>
+                            <MudStack Row>
+                                <MudButton Variant="Variant.Outlined" Style="@($"color:{Colors.Orange.Darken1}; border: 1px solid{Colors.Orange.Darken1};")" Class="ml-auto" DisableElevation="true" OnClick="@(async() => await AddBoletaServicio(context.Item.Id))">Añadir Servicio</MudButton>
+                                @if (login.isRecepcionist || login.isManager)
+                                {
+                                        <MudButton Variant="Variant.Filled" Style="@($"color:{Colors.Grey.Lighten4}; background:{Colors.Orange.Darken2};")" DisableElevation="true" OnClick="@(async () => await ShowCheckoutDialog(context.Item))" Class="mx-2">Check Out</MudButton>
+                                }
+                            </MudStack>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        </MudItem>
+        @if (login.isRecepcionist || login.isManager)
+        {
+            <MudItem xs="11" sm="11">
+                <MudDataGrid Items="@reservasPendiente" QuickFilter="@quickFilter" Hover="true" Elevation="5" Dense="true" Style="@($"border: 2px solid{Colors.Green.Darken3};")">
+                    <ToolBarContent>
+                        <MudText Typo="Typo.h6">RESERVAS PENDIENTES</MudText>
+                        <MudSpacer />
+                        <MudTextField @bind-Value="searchString" Placeholder="Busqueda (titular, estado, motivo de reserva, empresa, fecha reserva)" Variant="Variant.Outlined" Adornment="Adornment.Start" Immediate="true"
+                        AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"></MudTextField>
+                    </ToolBarContent>
+                    <Columns>
+                        <PropertyColumn Property="r => r.NombreTitular" Title="Titular" />
+                        <PropertyColumn Property="r => r.Fecha_Llegada.ToString(dateFormat)" Title="Fecha de llegada" />
+                        <PropertyColumn Property="r => r.Fecha_Salida.ToString(dateFormat)" Title="Fecha de salida" />
+                        <PropertyColumn Property="r => r.Nota" Title="Nota" />
+                        <TemplateColumn Title="Opciones" CellClass="d-flex">
+                            <CellTemplate>
+                                <MudStack Row>
+                                        <MudButton Variant="Variant.Filled" Style="@($"color:{Colors.Grey.Lighten4}; background:{Colors.Green.Darken2};")" DisableElevation="true" OnClick="@(async () => await CheckIn(context.Item))" Class="mx-2">Check In</MudButton>
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Surface" DisableElevation="true" OnClick="@(async () => await Cancelar(context.Item))" Class="mx-2">Cancelar</MudButton>
+                                </MudStack>
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>  
+            </MudItem>
+        }
+    </MudGrid>
+    }
+}
+
+@code {
+    IEnumerable<ReservasModel> reservas;
+    IEnumerable<ReservasModel> reservasCheckIn;
+    IEnumerable<ReservasModel> reservasPendiente;
+    IEnumerable<ClientesModel> clientes;
+    IEnumerable<HabitacionesModel> habitaciones;
+    List<string> huespedesList;
+    string dateFormat = "d";
+    private string searchString;
+    LoginSingleton login;
+
+
+    private Func<ReservasModel, bool> quickFilter => x =>
+       {
+           if (string.IsNullOrWhiteSpace(searchString))
+               return true;
+           if (x.NombreTitular.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+               return true;
+           if (x.NombreEstado.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+               return true;
+           if (x.NombreMotivoReserva.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+               return true;
+           if (x.NombreEmpresa.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+               return true;
+           if (x.Fecha_Reserva.ToString().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+               return true;
+           return false;
+       };
+
+    protected override async Task OnInitializedAsync()
+    {
+        login = await LoginSingleton.GetInstance();
+        reservas = await reservasService.GetReservas();
+        clientes = await clientesService.GetClientes();
+        habitaciones = await habitacionesService.GetHabitaciones();
+        reservasCheckIn = reservas.Where(r => r.Id_Estado == ((int)EstadosReservaEnum.CheckIn));
+        reservasPendiente = reservas.Where(r => r.Id_Estado == ((int)EstadosReservaEnum.Pendiente));
+        await SetCustomColumns();        
+    }
+
+    private Task SetCustomColumns()
+    {
+        foreach (var r in reservas)
+        {
+            r.NombreTitular = clientes.FirstOrDefault(t => t.Cid == r.Id_Titular).Nombre_Completo;
+        }
+        return Task.CompletedTask;
+
+    }
+
+    private async Task<string> GetHabitacionesString(int id)
+    {
+        string habitacionesText = "";
+        foreach (var gh in await reservasService.GetGrupoHabitaciones(id))
+        {
+            foreach (var habitacion in habitaciones)
+            {
+                if (gh.Habitacion == habitacion.Id)
+                {
+                    habitacionesText = habitacionesText + habitacion.Nombre + "  ";
+                }
+            }
+        }
+        return habitacionesText;
+    }
+
+    private async Task<bool> GetHuespedes(int id)
+    {
+        huespedesList = new List<string>();
+        foreach (var gc in await reservasService.GetGrupoHuespedes(id))
+        {
+            foreach (var cliente in clientes)
+            {
+                if (gc.Huesped== cliente.Cid)
+                {
+                    huespedesList.Add(cliente.Nombre_Completo + " " + cliente.Cid);
+                }
+            }
+        }
+        return true;
+    }
+
+    private async Task AddBoletaServicio(int id)
+    {
+        Navigation.NavigateTo($"/boletasservicioadd/{id}");
+    }
+
+    private async Task ShowCheckoutDialog(ReservasModel reserva)
+    {
+        DialogOptions closeOnEscapeKey = new DialogOptions() { CloseOnEscapeKey = true };
+        var parameters = new DialogParameters<DialogCheckOut>
+        {
+            { x => x.reserva, reserva},
+            { x => x.detalles, false}
+        };
+        var dialog = DialogService.Show<DialogCheckOut>("CheckOut",parameters, closeOnEscapeKey);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            reserva.Id_Estado = ((int)EstadosReservaEnum.CheckOut);
+            await reservasService.UpdateReserva(reserva);
+            foreach (var gh in await reservasService.GetGrupoHabitaciones(reserva.Id))
+            {
+                HabitacionesModel habitacion = await habitacionesService.GetHabitacion(gh.Habitacion);
+                habitacion.Id_Estado = ((int)EstadosHabitacionEnum.Limpieza);
+                await habitacionesService.UpdateHabitacion(habitacion);
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task CheckOut(ReservasModel reserva)
+    {
+        reserva.Id_Estado = ((int)EstadosReservaEnum.CheckOut);
+        await reservasService.UpdateReserva(reserva);
+        foreach (var gh in await reservasService.GetGrupoHabitaciones(reserva.Id))
+        {
+            HabitacionesModel habitacion = await habitacionesService.GetHabitacion(gh.Habitacion);
+            habitacion.Id_Estado = ((int)EstadosHabitacionEnum.Limpieza);
+            await habitacionesService.UpdateHabitacion(habitacion);
+        }
+        StateHasChanged();
+    }
+
+    private async Task CheckIn(ReservasModel reserva)
+    {
+        reserva.Id_Estado = ((int)EstadosReservaEnum.CheckIn);
+        await reservasService.UpdateReserva(reserva);
+        foreach (var gh in await reservasService.GetGrupoHabitaciones(reserva.Id))
+        {
+            HabitacionesModel habitacion = await habitacionesService.GetHabitacion(gh.Habitacion);
+            habitacion.Id_Estado = ((int)EstadosHabitacionEnum.Ocupado);
+            await habitacionesService.UpdateHabitacion(habitacion);
+        }
+        StateHasChanged();
+    }
+    private async Task Cancelar(ReservasModel reserva)
+    {
+        reserva.Id_Estado = ((int)EstadosReservaEnum.Cancelado);
+        await reservasService.UpdateReserva(reserva);
+        foreach (var gh in await reservasService.GetGrupoHabitaciones(reserva.Id))
+        {
+            HabitacionesModel habitacion = await habitacionesService.GetHabitacion(gh.Habitacion);
+            habitacion.Id_Estado = ((int)EstadosHabitacionEnum.Libre);
+            await habitacionesService.UpdateHabitacion(habitacion);
+        }
+        StateHasChanged();
+    }
+}
+@*
+            habitaciones de todos los grupos
+SELECT
+  grupo_habitaciones.*,
+  habitaciones.*
+FROM
+  grupo_habitaciones
+  INNER JOIN habitaciones ON grupo_habitaciones.habitacion = habitaciones.id
+ORDER BY
+  grupo_habitaciones.id;
+
+
+<MudText>
+                @{
+                    string habitacionesText = "Habitaciones: " + (async () => await GetHabitaciones(reserva.Id));
+                    @habitacionesText
+                }
+            </MudText>
+            <MudSelect T="string" Label="Seleccione una categoria para Añadir" AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined">
+                @{
+                    var basura = (async () => await GetHuespedes(reserva.Id));
+                    if(huespedesList==null)
+                    {
+                        <p><em>Cargando...</em></p>
+
+                    }
+                    else
+                    foreach (var huesped in huespedesList)
+                    {
+                        <MudSelectItem Value="@(huesped)"/>
+                    }
+                 }
+            </MudSelect>
+            
+             <MudListItem Icon="@Icons.Material.Filled.Inbox" Text="Inbox" Expanded>
+            <NestedList>
+                <MudListItem Icon="@Icons.Material.Filled.StarRate">
+                    Starred
+                </MudListItem>
+                <MudListItem Icon="@Icons.Material.Filled.WatchLater">
+                    Snoozed
+                </MudListItem>
+            </NestedList>
+        </MudListItem>
+        
+        
+        
+        
+        <MudItem xs="3">
+                <MudCard Elevation="5" Outlined="true" class="rounded-sm" Style="@($"color:{Colors.Grey.Darken4};background:{Colors.Green.Lighten5};border: 2px solid{Colors.Green.Darken2};border-radius: 15px;")">
+                    <MudCardContent>
+                        <MudGrid>
+                            <MudItem xs="12">
+                                <MudText Align="Align.Center" Class="d-flex align-center justify-center mud-width-full py-8" Typo="Typo.h6">
+                                    @{
+                                        string titularText = "Titular: " + reserva.Id_Titular + " " + clientes.FirstOrDefault(c => c.Cid == reserva.Id_Titular).Nombre_Completo;
+                                        @titularText
+                                    }
+                                </MudText>
+                            </MudItem>
+                            <MudItem xs="6" sm="6">
+                                <MudText Class="d-flex align-center justify-center mud-width-full py-8" Typo="Typo.body2">
+                                    @{
+                                        string fechaLlegadaText = "Fecha Llegada\n" + reserva.Fecha_Llegada.ToString(dateFormat);
+                                        @fechaLlegadaText
+                                    }
+                                </MudText>
+                            </MudItem>
+                            <MudItem xs="6" sm="6">
+                                <MudText Class="d-flex align-center justify-center mud-width-full py-8" Typo="Typo.body2">
+                                    @{
+                                        string fechaSalidaText = "Fecha Salida\n" + reserva.Fecha_Salida.ToString(dateFormat);
+                                        @fechaSalidaText
+                                    }
+                                </MudText>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="ml-auto" OnClick="@(async() => await AddBoletaServicio(reserva.Id))">Añadir Servicio</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" DisableElevation="true" OnClick="@(async () => await CheckOut(reserva))" Class="mx-2">Check Out</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+
+
+
+
+
+        @foreach (var reserva in reservas.Where(r => r.Id_Estado == ((int)EstadosReservaEnum.Pendiente)))
+        {
+            <MudItem xs="3">
+                <MudCard Elevation="5" Outlined="true" Style="@($"color:{Colors.Grey.Darken4};background:{Colors.Blue.Lighten5};border: 2px solid{Colors.Blue.Darken4};border-radius: 15px;")">
+                    <MudCardContent>
+                        <MudGrid>
+                            <MudItem xs="12">
+                                <MudText Class="d-flex align-center justify-center mud-width-full py-8" Typo="Typo.h6">
+                                    @{
+                                        string titularText = "Titular: " + reserva.Id_Titular + " " + clientes.FirstOrDefault(c => c.Cid == reserva.Id_Titular).Nombre_Completo;
+                                        @titularText
+                                    }
+                                </MudText>
+                            </MudItem>
+                            <MudItem xs="6" sm="6">
+                                <MudText Class="d-flex align-center justify-center mud-width-full py-8" Typo="Typo.body2">
+                                    @{
+                                        string fechaLlegadaText = "Fecha Llegada\n" + reserva.Fecha_Llegada.ToString(dateFormat);
+                                        @fechaLlegadaText
+                                    }
+                                </MudText>
+                            </MudItem>
+                            <MudItem xs="6" sm="6">
+                                <MudText Class="d-flex align-center justify-center mud-width-full py-8" Typo="Typo.body2">
+                                    @{
+                                        string fechaSalidaText = "Fecha Salida\n" + reserva.Fecha_Salida.ToString(dateFormat);
+                                        @fechaSalidaText
+                                    }
+                                </MudText>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                    <MudCardActions>
+                    <MudButton Variant="Variant.Filled" Color="Color.Tertiary" DisableElevation="true" OnClick="@(async () => await CheckIn(reserva))" Class="mx-2">Check In</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+        *@

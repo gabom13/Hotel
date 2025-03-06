@@ -1,0 +1,83 @@
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+
+@inject IServiciosService serviciosService
+
+<MudDialog>
+    <DialogContent>
+        <MudCard Elevation="0">
+            <MudCardContent Class="d-flex justify-center flex-wrap">
+                <MudText>Total de servicios: @($"{reserva.PrecioServicios:Bs 0,0.00}")</MudText>
+                <MudDivider/>
+                <MudButton Style="@($"color:{Colors.Orange.Darken1};")" OnClick="OnExpandCollapseClick">@(_expanded ? "Ocultar Servicios" : "Mostrar Servicios")</MudButton>
+                <MudCollapse Expanded="_expanded">
+                    @if(boletasServicio == null)
+                    {
+                        <MudText>Cargando...</MudText>
+                    }
+                    else if(boletasServicio.Count() == 0)
+                    {
+                        <MudText>No hay servicios contratados</MudText>
+                    }
+                    else
+                    {
+                        <MudDataGrid Items="@boletasServicio" Hover="true" Elevation="1" Dense="true">
+                            <Columns>
+                                <PropertyColumn Property="bs => bs.NombreServicio" Title="Servicio" />
+                                <PropertyColumn Property="bs => bs.Precio" Title="Precio" Format="'Bs '0,0.00" />
+                                <PropertyColumn Property="bs => bs.Nota" Title="Nota" />
+                            </Columns>
+                        </MudDataGrid>
+                    }
+                </MudCollapse>
+            </MudCardContent>
+        </MudCard>
+    </DialogContent>
+    <DialogActions>
+        @if(!detalles)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Submit">CheckOut</MudButton>
+        }
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public ReservasModel reserva { get; set; }
+    [Parameter]
+    public bool detalles { get; set; }
+    private IEnumerable<BoletasServicioModel> boletasServicio;
+    IEnumerable<ServiciosModel> servicios;
+    bool _expanded = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var boletas = await serviciosService.GetBoletasServicio();
+        servicios = await serviciosService.GetServicios();
+        boletasServicio = boletas?.Where(bs => bs.Id_Reserva == reserva.Id) ?? new List<BoletasServicioModel>();
+        reserva.PrecioServicios = boletasServicio.Sum(bs => (double?)bs.Precio) ?? 0;
+        var serviciosDictionary = servicios.ToDictionary(s => s.Id, s => s.Nombre);
+        foreach (var b in boletasServicio)
+        {
+            if (serviciosDictionary.TryGetValue(b.Servicio, out var nombreServicio))
+            {
+                b.NombreServicio = nombreServicio;
+            }
+        }
+    }
+
+    private void OnExpandCollapseClick()
+    {
+        _expanded = !_expanded;
+    }
+
+    private async void Submit()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

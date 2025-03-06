@@ -1,0 +1,219 @@
+﻿@page "/reservas"
+
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+@using WebTest5.Components.Enum
+
+@rendermode InteractiveServer
+
+@inject IDialogService DialogService
+@inject IClientesService clientesService
+@inject IReservasService reservasService
+@inject ICategoriasService categoriasService
+@inject IHabitacionesService habitacionesService
+@inject IServiciosService serviciosService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@if (reservas == null && clientes == null && estadosReserva == null)
+{
+    <MudPaper Height="400px" Class="justify-center d-flex">
+        <MudProgressCircular Color="Color.Dark" Indeterminate="true" Size="Size.Large" Class="align-self-center" />
+    </MudPaper>
+}
+else
+{
+    @if (!login.isLoggedIn)
+    {
+        <MudText Typo="Typo.h6">Inicia sesion para continuar</MudText>
+    }
+    else
+    {
+        @if (login.isRecepcionist || login.isManager)
+        {
+            <MudDataGrid Items="@reservas" QuickFilter="@quickFilter" Elevation="5" Dense="true">
+                <ToolBarContent>
+                <MudText Typo="Typo.h6">RESERVAS</MudText>
+                <MudSpacer />
+                <MudButton OnClick="@AddReserva" Color="@Color.Success" Variant="Variant.Filled" Class="add-item-btn mr-8">Añadir Reserva </MudButton>
+                <MudTextField @bind-Value="searchString" Placeholder="Busqueda (titular, estado, motivo de reserva, empresa, fecha reserva)" Variant="Variant.Outlined" Adornment="Adornment.Start" Immediate="true"
+                              AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"></MudTextField>
+            </ToolBarContent>
+            <Columns>
+                <PropertyColumn Property="r => r.NombreTitular" Title="Titular" />
+                <PropertyColumn Property="r => r.NombreEstado" Title="Estado" />
+                <PropertyColumn Property="r => r.Fecha_Llegada.ToString(dateFormat)" Title="Fecha de llegada" />
+                <PropertyColumn Property="r => r.Fecha_Salida.ToString(dateFormat)" Title="Fecha de salida" />
+                <PropertyColumn Property="r => r.NombreMotivoReserva" Title="Motivo de reserva" />
+                <PropertyColumn Property="r => r.NombreEmpresa" Title="Empresa" />
+                <PropertyColumn Property="r => r.Descuento" Title="Descuento (%)" />
+                <PropertyColumn Property="r => r.Pax" Title="Pax" />
+                    <PropertyColumn Property="r => r.PrecioHabitaciones" Title="Precio de habitaciones" Format="'Bs '0,0.00" />
+                <TemplateColumn Title="Precio de servicios" CellClass="d-flex" SortBy="@((context) => context.PrecioServicios)">
+                    <CellTemplate>
+                        <MudStack Row>
+                                <MudText Typo="Typo.inherit">@($"{context.Item.PrecioServicios:Bs 0,0.00}")</MudText>
+                            <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Filled.Info" Variant="Variant.Text" Color="Color.Primary" OnClick="@(async () => await ShowCheckoutDialog(context.Item))" />
+                        </MudStack>
+                    </CellTemplate>
+                </TemplateColumn>
+                    <PropertyColumn Property="r => r.PrecioFinal" Title="Precio Total" Format="'Bs '0,0.00" />
+                <PropertyColumn Property="r => r.Fecha_Reserva.ToString(dateFormat)" Title="Fecha de reserva" />
+                <PropertyColumn Property="r => r.Nota" Title="Nota" />
+                <TemplateColumn CellClass="d-flex justify-end">
+                    <CellTemplate>
+                        <MudStack Row>
+                            <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" Color="Color.Info" OnClick="@(() => EditReserva(context.Item.Id))" />
+                            <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(async () => await ShowDeleteDialog(context.Item.Id))" />
+                        </MudStack>
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <PagerContent>
+                <MudDataGridPager T="ReservasModel" PageSizeOptions=@(new int[] {5, 10, 20}) />
+            </PagerContent>
+        </MudDataGrid>
+        }
+        else
+        {
+            <MudText Typo="Typo.h6">No tienes permiso para acceder</MudText>
+        }
+    }
+}
+
+@code {
+    private IEnumerable<ReservasModel> reservas;
+    private IEnumerable<ClientesModel> clientes;
+    private IEnumerable<EmpresasModel> empresas;
+    private IEnumerable<MotivosReservaModel> motivosReserva;
+    private IEnumerable<EstadosReservaModel> estadosReserva;
+    private IEnumerable<GrupoHabitacionesModel> grupoHabitaciones;
+    private IEnumerable<HabitacionesModel> habitaciones;
+    private IEnumerable<TipoHabitacionesModel> tipoHabitaciones;
+    private IEnumerable<BoletasServicioModel> boletasServicio;
+    string dateFormat = "d";
+    private string searchString;
+    LoginSingleton login;
+
+    private Func<ReservasModel, bool> quickFilter => x =>
+       {
+           if (string.IsNullOrWhiteSpace(searchString))
+               return true;
+           if (x.NombreTitular.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+               return true;
+           if (x.NombreEstado.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+               return true;
+           if (x.NombreMotivoReserva.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+               return true;
+           if (x.NombreEmpresa.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+               return true;
+           if (x.Fecha_Reserva.ToString().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+               return true;
+           return false;
+       };
+
+    protected override async Task OnInitializedAsync()
+    {
+        login = await LoginSingleton.GetInstance();
+        clientes = await clientesService.GetClientes();
+        reservas = await reservasService.GetReservas();
+        empresas = await categoriasService.GetEmpresas();
+        motivosReserva = await categoriasService.GetMotivosReserva();
+        estadosReserva = await categoriasService.GetEstadosReserva();
+        grupoHabitaciones = await reservasService.GetGrupoHabitaciones();
+        habitaciones = await habitacionesService.GetHabitaciones();
+        tipoHabitaciones = await habitacionesService.GetTipoHabitaciones();
+        boletasServicio = await serviciosService.GetBoletasServicio();
+        await SetCustomColumns();
+    }
+
+    void AddReserva()
+    {
+        Navigation.NavigateTo("/reservasadd");
+    }
+
+    private async Task ShowDeleteDialog(int id)
+    {
+        DialogOptions closeOnEscapeKey = new DialogOptions() { CloseOnEscapeKey = true};
+        var dialog = DialogService.Show<DialogDelete>("Eliminar", closeOnEscapeKey);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await reservasService.DeleteGrupoHabitaciones(id);
+            await reservasService.DeleteGrupoHuespedes(id);
+            await reservasService.DeleteReserva(id);
+            reservas = await reservasService.GetReservas();
+            await SetCustomColumns();
+            Snackbar.Add("Eliminado", Severity.Success);
+        }
+    }
+
+    private async Task ShowCheckoutDialog(ReservasModel reserva)
+    {
+        DialogOptions closeOnEscapeKey = new DialogOptions() { CloseOnEscapeKey = true };
+        var parameters = new DialogParameters<DialogCheckOut>
+        {
+            { x => x.reserva, reserva},
+            { x => x.detalles, true}
+        };
+        var dialog = DialogService.Show<DialogCheckOut>("Servicios", parameters, closeOnEscapeKey);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            reserva.Id_Estado = ((int)EstadosReservaEnum.CheckOut);
+            await reservasService.UpdateReserva(reserva);
+            foreach (var gh in await reservasService.GetGrupoHabitaciones(reserva.Id))
+            {
+                HabitacionesModel habitacion = await habitacionesService.GetHabitacion(gh.Habitacion);
+                habitacion.Id_Estado = ((int)EstadosHabitacionEnum.Limpieza);
+                await habitacionesService.UpdateHabitacion(habitacion);
+            }
+            StateHasChanged();
+        }
+    }
+    
+    private void EditReserva(int id)
+    {
+        Navigation.NavigateTo($"/reservasedit/{id}");
+    }
+
+    private Task SetCustomColumns()
+    {
+        foreach (var r in reservas)
+        {
+            r.NombreEstado = estadosReserva.FirstOrDefault(e => e.Id == r.Id_Estado).Nombre;
+            r.NombreTitular = clientes.FirstOrDefault(t => t.Cid == r.Id_Titular).Nombre_Completo;
+            r.NombreEmpresa = empresas.FirstOrDefault(e => e.Id == r.Empresa)?.Nombre ?? "";
+            r.NombreMotivoReserva = motivosReserva.FirstOrDefault(m => m.Id == r.Motivo_Reserva)?.Nombre ?? "";
+            r.PrecioHabitaciones = PrecioHabitaciones(r);
+            r.PrecioServicios = PrecioServicios(r);
+            r.PrecioFinal = r.PrecioHabitaciones + r.PrecioServicios;
+        }
+        return Task.CompletedTask;
+    }
+
+    private double PrecioHabitaciones(ReservasModel r)
+    {
+        var preciosPorTipo = tipoHabitaciones.ToDictionary(th => th.Id, th => th.Precio);
+        List<GrupoHabitacionesModel> gh = grupoHabitaciones.Where(g => g.Id == r.Id).ToList();
+        double ph = 0;
+        foreach (var hab in gh)
+        {
+            var precioHabitacion = preciosPorTipo[habitaciones.First(h => h.Id == hab.Habitacion).Tipo];
+            ph += precioHabitacion;
+        }
+        double descuento = r.Descuento;
+        descuento = ph * (descuento / 100);
+        ph = ph - descuento;
+        return ph;
+    }
+
+    private double PrecioServicios(ReservasModel r)
+    {
+        return boletasServicio
+            .Where(bs => bs.Id_Reserva == r.Id)
+            .Sum(bs => (double?)bs.Precio) ?? 0;
+    }
+}

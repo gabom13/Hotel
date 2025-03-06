@@ -1,0 +1,26 @@
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+
+@inject ICategoriasService categoriasService
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField T="string" Label="Nombre" @bind-Value="motivoReserva.Nombre" Required="true" RequiredError="¡Debe ingresar un nombre!" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary" OnClick="Submit">Añadir</MudButton>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    MotivosReservaModel motivoReserva= new MotivosReservaModel();
+    private async Task Submit()
+    {
+        await categoriasService.AddMotivoReserva(motivoReserva);
+        MudDialog.Close(DialogResult.Ok(true));
+
+    }
+    void Cancel() => MudDialog.Cancel();
+}

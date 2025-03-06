@@ -1,0 +1,134 @@
+﻿@page "/clientes"
+
+@using System.Collections.ObjectModel
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+
+@rendermode InteractiveServer
+
+@inject IDialogService DialogService
+@inject IClientesService clientesService
+@inject ICategoriasService categoriasService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@if (clientes == null && paises == null && ciudades == null && profesiones == null )
+{
+    <MudPaper Height="400px" Class="justify-center d-flex">
+        <MudProgressCircular Color="Color.Dark" Indeterminate="true" Size="Size.Large" Class="align-self-center" />
+    </MudPaper>
+}
+else
+{
+
+    @if (!login.isLoggedIn)
+    {
+        <MudText Typo="Typo.h6">Inicia sesion para continuar</MudText>
+    }
+    else
+
+    {
+        @if (login.isRecepcionist || login.isManager)
+        {       
+            <MudDataGrid Items="@clientes" QuickFilter="@quickFilter" Hover="true" Elevation="5" Dense="true">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">CLIENTES</MudText>
+                    <MudSpacer />
+                    <MudButton OnClick="@AddCliente" Color="@Color.Success" Variant="Variant.Filled" Class="add-item-btn mr-8">Añadir Cliente</MudButton>
+                    <MudTextField @bind-Value="searchString" Placeholder="Busqueda (cid, nombre)" Variant="Variant.Outlined" Adornment="Adornment.Start" Immediate="true"
+                                  AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"></MudTextField>
+                 </ToolBarContent>        
+                 <Columns>
+                    <PropertyColumn Property="c => c.Cid" Title="Cid" />
+                    <PropertyColumn Property="c => c.Nombre_Completo" Title="Nombre Completo" />
+                    <PropertyColumn Property="c => c.Direccion_Residencia" Title="Direccion de Residencia" />
+                    <PropertyColumn Property="c => c.Correo_Electronico" Title="Correo Electronico" />
+                    <PropertyColumn Property="c => c.NombrePais" Title="Pais" />
+                    <PropertyColumn Property="c => c.NombreCiudad" Title="Ciudad de Procedencia" />
+                    <PropertyColumn Property="c => c.NombreProfesion" Title="Profesion" />
+                    <PropertyColumn Property="c => c.Fecha_Nacimiento.ToString(dateFormat)" Title="Fecha de Nacimiento"/>
+                    <PropertyColumn Property="c => c.Telefono" Title="Telefono" />
+                    <TemplateColumn CellClass="d-flex">
+                        <CellTemplate>
+                            <MudStack Row>
+                                <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" Color="Color.Info" OnClick="@(() => EditCliente(context.Item.Cid))" />
+                                <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => RemoveCliente(context.Item.Cid))" />
+                            </MudStack>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+             </MudDataGrid>
+        }
+        else
+        {
+            <MudText Typo="Typo.h6">No tienes permiso para acceder</MudText>
+        }
+    }
+}
+
+@code {
+    private IEnumerable<ClientesModel> clientes;
+    private IEnumerable<PaisesModel> paises;
+    private IEnumerable<CiudadesModel> ciudades;
+    private IEnumerable<ProfesionesModel> profesiones;
+    private string dateFormat = "d";
+    private string searchString;
+    LoginSingleton login;
+
+    private Func<ClientesModel, bool> quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (x.Nombre_Completo.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (x.Cid.ToString().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        login = await LoginSingleton.GetInstance();
+        clientes = await clientesService.GetClientes();
+        paises = await categoriasService.GetPaises();
+        ciudades = await categoriasService.GetCiudades();
+        profesiones = await categoriasService.GetProfesiones();        
+        await SetCustomColums();
+    }
+
+    private void AddCliente()
+    {
+        Navigation.NavigateTo($"/clientesform/{null}");
+    }
+
+    private void EditCliente(int id)
+    {
+        Navigation.NavigateTo($"/clientesform/{id}");
+    }
+
+    private async Task RemoveCliente(int id)
+    {
+        DialogOptions closeOnEscapeKey = new DialogOptions() { CloseOnEscapeKey = true, Position = DialogPosition.Center };
+        var dialog = await DialogService.ShowAsync<DialogDelete>("Eliminar", closeOnEscapeKey);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await clientesService.DeleteCliente(id);
+            clientes = await clientesService.GetClientes();
+            await SetCustomColums();
+            Snackbar.Add("Eliminado", Severity.Success);
+        }
+    }
+
+    private Task SetCustomColums()
+    {
+        foreach (var c in clientes)
+        {
+            c.NombrePais = paises.FirstOrDefault(p => p.Id == c.Pais)?.Nombre ?? "";
+            c.NombreCiudad = ciudades.FirstOrDefault(cd => cd.Id == c.Ciudad_Procedencia)?.Nombre ?? "";
+            c.NombreProfesion = profesiones.FirstOrDefault(p => p.Id == c.Profesion)?.Nombre ?? "";
+        }
+        return Task.CompletedTask;
+    }
+}

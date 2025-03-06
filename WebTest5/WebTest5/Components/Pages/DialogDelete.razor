@@ -1,0 +1,25 @@
+<MudDialog TitleClass="dialog-background-title">
+    <TitleContent>
+        Advertencia
+    </TitleContent>
+    <DialogContent>
+        ¿Esta seguro?
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Error" OnClick="Submit">Eliminar</MudButton>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+<style>
+    .dialog-background-title {
+        background: rgb(200, 15, 15);
+        color: var(--mud-palette-white);
+    }
+</style>
+@code {
+    [CascadingParameter]
+    private MudDialogInstance MudDialog { get; set; }
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(true));
+    private void Cancel() => MudDialog.Cancel();
+}

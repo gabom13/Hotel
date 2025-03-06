@@ -1,0 +1,27 @@
+﻿@page "/"
+@using WebTest5.Components.Model
+
+@if (login.isLoggedIn)
+{
+    <MudGrid>
+        <MudItem xs="12" sm="12">
+            <MudText Class="justify-center d-flex" Typo="Typo.h5">Bienvenido</MudText>
+        </MudItem>
+        <MudItem xs="12" sm="12" Class="justify-center d-flex">
+            <MudImage Src="/HotelAngostura.png" Fluid="true" Alt="Hotel Angostura" Class="rounded-lg justify-center d-flex"></MudImage>
+        </MudItem>
+
+    </MudGrid>
+}
+else
+{
+    <MudText Typo="Typo.h6">Inicia sesión para continuar</MudText>
+}
+
+@code{
+    LoginSingleton login;
+    protected override async void OnInitialized()
+    {
+        login = await LoginSingleton.GetInstance();
+    }
+}

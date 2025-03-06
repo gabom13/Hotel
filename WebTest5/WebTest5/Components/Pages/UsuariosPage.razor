@@ -1,0 +1,122 @@
+﻿@page "/usuarios"
+
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+
+@rendermode InteractiveServer
+
+@inject IDialogService DialogService
+@inject IUsuariosService usuariosService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@if (usuarios == null)
+{
+    <MudPaper Height="400px" Class="justify-center d-flex">
+        <MudProgressCircular Color="Color.Dark" Indeterminate="true" Size="Size.Large" Class="align-self-center" />
+    </MudPaper>
+}
+else
+{
+    @if (!login.isLoggedIn)
+    {
+        <MudText Typo="Typo.h6">Inicia sesion para continuar</MudText>
+    }
+    else
+    {
+        @if (login.isManager)
+        {
+            <MudDataGrid Items="@usuarios" QuickFilter="@quickFilter" Elevation="5" Dense="true">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">USUARIOS</MudText>
+                    <MudSpacer />
+                    <MudButton OnClick="@AddUsuario" Color="@Color.Success" Variant="Variant.Filled" Class="add-item-btn mr-8">Añadir Usuario</MudButton>
+                    <MudTextField @bind-Value="searchString" Placeholder="Busqueda (cid, nombre, nivel de acceso)" Variant="Variant.Outlined" Adornment="Adornment.Start" Immediate="true"
+                                  AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium"></MudTextField>
+                </ToolBarContent>
+                <Columns>
+                    <PropertyColumn Property="c => c.Cid" Title="Cid" />
+                    <PropertyColumn Property="c => c.Nombre_Completo" Title="Nombre Completo" />
+                    <PropertyColumn Property="c => c.Fecha_Nacimiento.ToString(dateFormat)" Title="Fecha de Nacimiento"/>
+                    <PropertyColumn Property="c => c.Telefono" Title="Telefono" />
+                    <PropertyColumn Property="c => c.NombreNivelAcceso" Title="Nivel de Acceso" />
+                    <TemplateColumn Title="Opciones" CellClass="d-flex">
+                        <CellTemplate>
+                            <MudStack Row>
+                                <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Outlined.Edit" Variant="Variant.Outlined" Color="Color.Info" OnClick="@(() => EditUsuario(context.Item.Cid))" />
+                                <MudIconButton Size="@Size.Small" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => ShowDeleteDialog(context.Item.Cid))" />
+                            </MudStack>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        }
+        else
+        {
+            <MudText Typo="Typo.h6">No tienes permiso para acceder</MudText>
+        }
+    }
+}
+
+@code {
+    private IEnumerable<UsuariosModel> usuarios;
+    private IEnumerable<NivelesAccesoModel> nivelesAcceso;
+    string dateFormat = "d";
+    private string searchString;
+    LoginSingleton login;
+
+    private Func<UsuariosModel, bool> quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (x.Nombre_Completo.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (x.NombreNivelAcceso.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (x.Cid.ToString().Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        login = await LoginSingleton.GetInstance();
+        usuarios = await usuariosService.GetUsuarios();
+        nivelesAcceso = await usuariosService.GetNivelesAcceso();
+        await SetCustomColums();
+    }
+
+    void AddUsuario()
+    {
+        Navigation.NavigateTo($"/usuariosform/{null}");
+    }
+
+    private void EditUsuario(int id)
+    {
+        Navigation.NavigateTo($"/usuariosform/{id}");
+    }
+
+    private async Task ShowDeleteDialog(int id)
+    {
+        DialogOptions closeOnEscapeKey = new DialogOptions() { CloseOnEscapeKey = true, Position = DialogPosition.Center };
+        var dialog = await DialogService.ShowAsync<DialogDelete>("Eliminar", closeOnEscapeKey);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await usuariosService.DeleteUsuario(id);
+            usuarios = await usuariosService.GetUsuarios();
+            await SetCustomColums();
+            Snackbar.Add("Eliminado", Severity.Success);
+        }
+    }  
+
+    private Task SetCustomColums()
+    {
+        foreach (var u in usuarios)
+        {
+            u.NombreNivelAcceso = nivelesAcceso.FirstOrDefault(n => n.Id == u.Nivel_Acceso).Nombre;
+        }
+        return Task.CompletedTask;
+    }
+}

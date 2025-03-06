@@ -1,0 +1,116 @@
+﻿@page "/usuariosform/{id:int?}"
+
+@using WebTest5.Components.Enum
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+
+@rendermode InteractiveServer
+
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject IUsuariosService usuariosService
+
+@if (usuario == null && nivelesAcceso==null)
+{
+	<MudPaper Height="400px" Class="justify-center d-flex">
+		<MudProgressCircular Color="Color.Dark" Indeterminate="true" Size="Size.Large" Class="align-self-center" />
+	</MudPaper>
+}
+else
+{
+	@if (!login.isLoggedIn)
+	{
+		<MudText Typo="Typo.h6">Inicia sesion para continuar</MudText>
+
+	}
+	else
+	{
+		@if (login.isManager)
+		{
+			<MudGrid>
+				<MudItem xs="11" sm="11">
+					<MudCard Elevation="5">
+						<MudCardHeader Class="justify-center d-flex">
+							<MudText Typo="Typo.h5">USUARIO</MudText>
+						</MudCardHeader>
+						<MudCardContent>
+							<MudForm @ref="@form" Model="@usuario" Class="px-4">
+								<MudNumericField T="int" Label="Numero de Carnet de Identidad" @bind-Value="usuario.Cid" HideSpinButtons="true" Margin="Margin.Normal" Required="true" RequiredError="¡Debe ingresar un numero de carnet de identidad!" />
+								<MudTextField T="string" Label="Nombre" @bind-Value="usuario.Nombre_Completo" Margin="Margin.Normal" Required="true" RequiredError="¡Debe ingresar un nombre!" />
+								<MudStack Row="true">
+									<MudDatePicker Label="Fecha de Nacimiento" @bind-Date="fechaNacimiento" DisableToolbar="true" Margin="Margin.Normal" Required="true" />
+									<MudNumericField T="int" Label="Telefono" @bind-Value="usuario.Telefono" HideSpinButtons="true" Margin="Margin.Normal" Required="true" RequiredError="¡Debe ingresar un telefono!" />
+								</MudStack>
+								<MudTextField T="string" Label="Contraseña" @bind-Value="usuario.Contraseña" Margin="Margin.Normal" Required="true" RequiredError="¡Debe ingresar una contraseña!" />
+								<MudStack Row="true">
+									<MudSelect T="int" Label="Nivel de Acceso" @bind-Value="usuario.Nivel_Acceso" Margin="Margin.Normal" Required="true" AnchorOrigin="Origin.BottomCenter">
+										@if (nivelesAcceso != null)
+										@foreach (var nivelAcceso in nivelesAcceso)
+										{
+											<MudSelectItem Value="nivelAcceso.Id">@nivelAcceso.Nombre</MudSelectItem>
+										}
+									</MudSelect>
+								</MudStack>					
+							</MudForm>
+						</MudCardContent>
+						<MudCardActions>
+							<MudButton Variant="Variant.Filled" Color="Color.Success" Class="ml-auto" Disabled="@disabled" OnClick="@(async () => await Submit())">Guardar</MudButton>
+							<MudButton Variant="Variant.Outlined" Color="Color.Error" DisableElevation="true" OnClick="Cancel" Class="mx-2">Cancelar</MudButton>
+						</MudCardActions>
+					</MudCard>
+				</MudItem>
+			</MudGrid>
+		}
+		else
+		{
+			<MudText Typo="Typo.h6">No tienes permiso para acceder</MudText>
+		}
+	}
+}
+@code {
+	[Parameter]
+	public int? Id { get; set; }
+
+	MudForm form;
+	UsuariosModel usuario;
+	IEnumerable<NivelesAccesoModel> nivelesAcceso;
+	public DateTime? fechaNacimiento { get; set; }
+	private FormMode formMode;
+	bool disabled = false;
+	LoginSingleton login;
+
+	protected override async Task OnInitializedAsync()
+	{
+		login = await LoginSingleton.GetInstance();
+		formMode = Id.HasValue ? FormMode.Edit : FormMode.Add;
+		usuario = new UsuariosModel();
+		if (formMode == FormMode.Edit)
+		{
+			usuario = await usuariosService.GetUsuario(Id);
+			fechaNacimiento = usuario.Fecha_Nacimiento;
+		}
+		nivelesAcceso = await usuariosService.GetNivelesAcceso();
+	}
+
+	private async Task Submit()
+	{
+		await form.Validate();
+		usuario.Fecha_Nacimiento = fechaNacimiento ?? DateTime.MinValue;
+
+		if (form.IsValid)
+		{
+			disabled = true;
+			if (formMode == FormMode.Add)
+				await usuariosService.AddUsuario(usuario);
+			else
+			if (formMode == FormMode.Edit)
+				await usuariosService.UpdateUsuario(usuario, Id);
+			Navigation.NavigateTo("/usuarios");
+		}
+	}
+
+	private void Cancel()
+	{
+		Navigation.NavigateTo("/usuarios");
+	}
+}

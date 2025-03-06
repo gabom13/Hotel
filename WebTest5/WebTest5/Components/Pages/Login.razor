@@ -1,0 +1,71 @@
+﻿@page "/login"
+
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+@using WebTest5.Components.Service
+@inject NavigationManager navigation
+@inject ILoginService _loginService
+@inject ISnackbar snackbar
+
+@rendermode InteractiveServer
+
+@if (login.isLoggedIn)
+{
+    <MudText Typo="Typo.h6">Ya iniciaste sesión</MudText>
+}
+else
+{
+    <MudGrid>
+		<MudItem xs="12" sm="12">
+            <MudForm Class="justify-center d-flex mx-auto pa-9">
+                <MudCard Elevation="5" Class="pa-5">
+                    <MudCardHeader Class="justify-center d-flex">
+                        <MudText Typo="Typo.h5">Inicia Sesión</MudText>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudTextField @bind-Value="_username" Label="Usuario"/>
+                        <MudTextField @bind-Value="_password" Label="Contraseña" InputType="InputType.Password" />
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton OnClick="@LogIn" Color="@Color.Success" Variant="Variant.Filled" Class="add-item-btn mx-auto">Iniciar Sesion</MudButton>
+                    </MudCardActions>
+                </MudCard>    
+            </MudForm>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private string _username;
+    private string _password;
+    LoginSingleton login;
+
+    protected override async void OnInitialized()
+    {
+        login = await LoginSingleton.GetInstance();
+    }
+   
+    private async Task LogIn()
+    {
+        bool isValid = await _loginService.IsValidUser(_username, _password);
+        if (isValid)
+        {
+            login.isLoggedIn = true;
+            if (await _loginService.GetNivelAcceso(_username) == 2)
+                login.isRecepcionist = true;
+            else
+            if (await _loginService.GetNivelAcceso(_username) == 3)
+                login.isManager = true;
+            else
+            if (await _loginService.GetNivelAcceso(_username) == 1)
+                login.isEmployee = true;
+            snackbar.Add("Iniciaste Sesión", Severity.Success);
+            navigation.NavigateTo("/");           
+        }
+        else
+        {
+            snackbar.Add("Usuario o Contraseña Incorrectos", Severity.Error);
+            navigation.NavigateTo("/login");
+        }
+    }
+}

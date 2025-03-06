@@ -1,0 +1,62 @@
+﻿@page "/bi"
+
+@using System.Collections.ObjectModel
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+@using Microsoft.ML
+@using Microsoft.ML.Data
+@using Microsoft.ML.Trainers
+@using System.Data
+@using System.Data.SqlClient
+@using System
+@using System.Collections.Generic
+@using System.IO
+@using System.Linq
+
+@rendermode InteractiveServer
+
+@inject IBiService biService
+@inject NavigationManager Navigation
+
+@if (!login.isLoggedIn)
+    {
+    <MudText Typo="Typo.h6">Inicia sesion para continuar</MudText>
+
+    }
+else
+{   @if (login.isManager)
+    {
+        <MudCard Class="mt-n9">
+            <MudCardHeader Class="text-center justify-center d-flex">
+                <MudText Class="ml-4" Typo="Typo.h5">BI</MudText>
+                <MudButton Class="ml-auto " OnClick="@Refresh" Color="@Color.Primary" Variant="Variant.Filled">Actualizar</MudButton>
+            </MudCardHeader>
+            <MudCardContent Class="my-n5">
+                <iframe src="http://localhost:12345/public/dashboard/9c8a05ad-b2cf-43a1-a884-2eef958d4019"
+                        frameborder="0"
+                        style="height: 600px;"
+                        allowtransparency>
+                </iframe>
+             </MudCardContent>
+        </MudCard>
+    }
+    else
+    {
+        <MudText Typo="Typo.h6">No tienes permiso para acceder</MudText>
+    }
+}
+
+@code {
+    LoginSingleton login;
+
+    protected override async Task OnInitializedAsync()
+    {
+        login = await LoginSingleton.GetInstance();
+        await biService.Iniciar();
+    }
+
+    void Refresh()
+    {
+        Navigation.Refresh(true);
+    }
+}

@@ -1,0 +1,27 @@
+@using WebTest5.Components.Interface
+@using WebTest5.Components.Model
+
+@inject ICategoriasService categoriasService
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField T="string" Label="Nombre" @bind-Value="empresa.Nombre" Required="true" RequiredError="¡Debe ingresar un nombre!" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary" OnClick="Submit">Añadir</MudButton>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    EmpresasModel empresa = new EmpresasModel();
+
+    private async void Submit()
+    {
+        await categoriasService.AddEmpresa(empresa);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}
